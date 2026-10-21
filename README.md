@@ -1,5 +1,8 @@
 # RailRush
 
+> 📖 **Full documentation: <https://hasinishraq.github.io/Rail-Rush-Documentation/>**
+> Architecture, API reference, operations guide, and a narrated architecture video.
+
 **A high-concurrency, real-time train ticketing system**, built around Bangladesh Railway's intercity
 network (a personal project, not affiliated with Bangladesh Railway).
 
@@ -8,11 +11,44 @@ locked seats into a 10-minute hold confirmed by an SMS one-time code, and paymen
 e-ticket. The hard part is the moment a train's sales open, when thousands of people click the same
 seats at once. RailRush never sells a seat twice.
 
-## How it works
+## Main features
 
-Every seat decision is made by **a single writer per journey**, in memory, and recorded as an event in
-Kafka. Everything else (the Postgres projection, seat maps, live updates, notifications) is derived from
-those events.
+- **No double sales.** One allocator worker owns each journey and decides every seat in memory. Seat
+  availability per trip segment is a bitmap, so overlapping trips can't share a seat, and a Postgres
+  `EXCLUDE` constraint backs this up.
+- **Event sourcing.** Every seat decision is an event in Kafka. The Postgres projection, seat maps, live
+  updates and notifications are all derived from those events.
+- **Scalability.** Requests are partitioned by journey across 256 Kafka partitions. The API is
+  stateless, and the API, live and allocator services scale out as replicas. Overloaded pods answer
+  `429` instead of falling over.
+- **Waiting room.** Users are admitted at a fixed rate with ES256-signed admission tokens, which absorbs
+  the spike when sales open.
+- **Saga workflows.** A booking moves from seat selection to hold, OTP, payment and confirmation through
+  timer-driven steps. Idle carts are released, unpaid holds expire, a late payment gets the nearest free
+  seat, and a payment with no seat left is refunded in full.
+- **Reliable payments.** The outbox pattern, signed webhooks and a reconciler make sure no payment is
+  lost or applied twice.
+- **Crash recovery.** After a crash, allocators rebuild each journey from snapshots plus the event log.
+- **Real-time updates.** Seat changes go out to every viewer as server-sent events (SSE).
+- **Security.** Argon2id passwords, ES256 JWTs with refresh-token reuse detection, Cloudflare Turnstile
+  on sign-up and login, per-IP and per-user rate limits, and signed QR codes on e-tickets.
+- **Observability.** Prometheus metrics, Grafana dashboards, and logs from every container in Loki.
+- **Bilingual.** The web app and PDF e-tickets come in English and Bangla.
+
+## Technology
+
+| | |
+|---|---|
+| Languages | Go, TypeScript, SQL, Protocol Buffers |
+| Backend | Go: one binary run in several roles, plus the stateful allocator |
+| Messaging | Kafka (Redpanda), Protocol Buffers |
+| Storage | PostgreSQL 16, Redis 7 |
+| Frontend | React 18, TypeScript, Vite |
+| Edge | Traefik, nginx |
+| Ops | Docker Compose, Prometheus, Grafana, Loki, Alloy |
+| Testing | Go tests with property-based testing (rapid), k6 load tests |
+
+## How it works
 
 ```
 browser ─▶ nginx ─▶ Traefik ─┬─▶ auth     login, tokens, Cloudflare Turnstile
@@ -24,19 +60,6 @@ browser ─▶ nginx ─▶ Traefik ─┬─▶ auth     login, tokens, Cloudfl
                                                                                 (one writer per journey)
 ```
 
-- **Event-sourced seat allocator.** Requests are partitioned by journey across 256 Kafka partitions, so
-  one allocator worker decides every seat of a journey. Seat availability per trip segment is a bitmap,
-  so overlapping trips can't share a seat. A Postgres `EXCLUDE` constraint backs this up.
-- **Real time.** Seat changes go out as server-sent events to every viewer.
-- **Built for the rush.** A waiting room admits users at a fixed rate with ES256-signed admission tokens.
-  Stateless API, live and allocator replicas scale out, and saturated pods answer `429` instead of
-  falling over.
-- **Fails safely.** Allocators rebuild journeys from snapshots plus the event log after a crash. Payments
-  use the outbox pattern, signed webhooks and a reconciler.
-- **Security.** Argon2id passwords, ES256 JWTs with refresh-token reuse detection, Cloudflare Turnstile
-  on sign-up and login, per-IP and per-user rate limits, and signed QR codes on e-tickets.
-- **Observability.** Prometheus metrics, Grafana dashboards, and logs from every container in Loki.
-
 ## Load-tested
 
 With [k6](test/load/README.md) against the whole stack on one laptop:
@@ -45,17 +68,6 @@ With [k6](test/load/README.md) against the whole stack on one laptop:
   with no double sale.
 - **10,000 users racing for 100 seats**: exactly 100 winners on 100 different seats, 0 failed requests,
   invariant check clean.
-
-## Tech stack
-
-| | |
-|---|---|
-| Backend | Go: one binary run in several roles, plus the stateful allocator |
-| Messaging | Kafka (Redpanda), Protocol Buffers |
-| Storage | PostgreSQL 16, Redis 7 |
-| Frontend | React 18, TypeScript, Vite; English and Bangla |
-| Edge | Traefik, nginx |
-| Ops | Docker Compose, Prometheus, Grafana, Loki, Alloy |
 
 ## Run it
 
@@ -70,8 +82,4 @@ Open the web app at <http://localhost:8088>. Grafana is on <http://localhost:300
 
 ## Documentation
 
-The full docs (architecture, API reference, operations, and a narrated architecture video) are in
-[`documentation/`](documentation/README.md). Start with
-[local setup](documentation/docs/getting-started/local-setup.md) and the
-[architecture overview](documentation/docs/architecture/index.md). The API can also be explored with the
-[Postman collection](documentation/postman/).
+See the full documentation at <https://hasinishraq.github.io/Rail-Rush-Documentation/>.
