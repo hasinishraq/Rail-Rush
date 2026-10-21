@@ -1,0 +1,75 @@
+syntax = "proto3";
+package booking.v1;
+option go_package = "railway/gen/booking/v1;bookingv1";
+import "google/protobuf/timestamp.proto";
+import "booking/v1/commands.proto";
+
+// ---------- Events: topic inventory-events, key = journey_id ----------
+message Event {
+  string event_id   = 1;                  // UUIDv7
+  int64  journey_id = 2;
+  google.protobuf.Timestamp at = 3;       // allocator wall clock at decision
+  string request_id = 4;                  // empty for timer-driven events
+  string idem_key   = 5;
+  int64  version    = 6;                  // Journey.Version after applying this event
+  oneof body {
+    SeatSelected seat_selected = 10;   SelectRejected select_rejected = 11;
+    SeatReleased seat_released = 12;   CartExpired cart_expired = 13;
+    SeatHeld seat_held = 14;           HoldRejected hold_rejected = 15;
+    Confirmed confirmed = 16;          ConfirmFailed confirm_failed = 17;
+    HoldExpired hold_expired = 18;     DeadlinesExtended deadlines_extended = 19;
+    Cancelled cancelled = 20;          SoldOut sold_out = 21;  Available available = 22;
+    JourneyWarmed warmed = 23;         Opened opened = 24;     SalesClosed sales_closed = 25;
+    CancelRejected cancel_rejected = 26;   // impl: the spec has no cancel-rejection event
+  }
+}
+
+message SeatRef { int32 seat_idx = 1; string seat_id = 2; }
+
+message SeatSelected {
+  int64 user_id = 1; SeatRef seat = 2;
+  int32 from_idx = 3; int32 to_idx = 4; string class_code = 5; string quota = 6;
+  repeated SeatRef cart = 7;              // the whole cart after this click
+  google.protobuf.Timestamp cart_expires_at = 8;
+  bool first = 9;                         // created the cart (sets FirstAt)
+  Channel channel = 10;                   // impl: counters are exempt from limits
+}
+
+message SelectRejected { int64 user_id = 1; string seat_id = 2; string code = 3; }
+// code: NOT_OPEN | SALES_CLOSED | SEAT_TAKEN | SEAT_NOT_IN_POOL | SELECTION_LIMIT |
+//       CART_CONFLICT | ACTIVE_HOLD_EXISTS | INVALID_SEGMENT
+
+message SeatReleased {
+  int64 user_id = 1; repeated SeatRef seats = 2;
+  google.protobuf.Timestamp cart_expires_at = 3;   // unset when the cart is empty
+}
+
+message CartExpired { int64 user_id = 1; repeated SeatRef seats = 2; }
+
+message SeatHeld {
+  string pnr = 1; int64 user_id = 2;
+  int32 from_idx = 3; int32 to_idx = 4; string class_code = 5; string quota = 6;
+  repeated Passenger passengers = 7; repeated SeatRef seats = 8;
+  google.protobuf.Timestamp expires_at = 9;
+  int64 amount_minor = 10; string currency = 11;
+  Channel channel = 12;                   // impl
+}
+
+message HoldRejected { string pnr = 1; int64 user_id = 2; string code = 3; }
+// code: EMPTY_CART | PASSENGER_COUNT_MISMATCH | SALES_CLOSED | ACTIVE_HOLD_EXISTS
+
+message Confirmed {
+  string pnr = 1; string payment_id = 2; repeated SeatRef seats = 3;
+  bool late = 4; bool seats_changed = 5;
+}
+message ConfirmFailed { string pnr = 1; string payment_id = 2; string reason = 3; }
+message HoldExpired   { string pnr = 1; }
+message DeadlinesExtended { int64 delta_ms = 1; }   // all live carts and holds on this journey
+message Cancelled { string pnr = 1; string cancel_id = 2; repeated int32 passenger_seqs = 3; }
+message CancelRejected { string pnr = 1; int64 user_id = 2; string code = 3; }
+// code: NOT_FOUND | FORBIDDEN | NOT_CANCELLABLE
+message SoldOut   { string class_code = 1; string quota = 2; }
+message Available { string class_code = 1; string quota = 2; }
+message JourneyWarmed {}
+message Opened      { repeated Pool pools = 1; }
+message SalesClosed {}

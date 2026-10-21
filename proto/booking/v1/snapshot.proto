@@ -1,0 +1,60 @@
+syntax = "proto3";
+package booking.v1;
+option go_package = "railway/gen/booking/v1;bookingv1";
+import "google/protobuf/timestamp.proto";
+import "booking/v1/commands.proto";
+import "booking/v1/events.proto";
+
+// Stored in journey_snapshot.state. Holds only the dynamic state of a journey;
+// the static parts (seat ids, coaches, pools) are rebuilt from Postgres, and the
+// seat bitmaps are recomputed from the claims.
+message JourneySnapshot {
+  int64 journey_id = 1;
+  int64 version = 2;
+  google.protobuf.Timestamp last_event = 3;
+  bool closed = 4;
+  repeated SeatClaims claims = 5;         // seats with at least one claim
+  repeated PoolState pools = 6;
+  repeated CartState carts = 7;
+  repeated HoldState holds = 8;           // live, unpaid
+  repeated HoldState booked = 9;          // paid
+  repeated HoldState expired = 10;        // expired, kept 24 h for a late Confirm
+  repeated SeenEntry seen = 11;
+}
+
+message SeatClaims { int32 seat_idx = 1; repeated ClaimState claims = 2; }
+
+message ClaimState {
+  fixed64 mask = 1;
+  int32 kind = 2;                         // 1 SELECTED, 2 HELD, 3 BOOKED
+  int64 owner = 3;
+  string pnr = 4;
+}
+
+message PoolState { string class_code = 1; string quota = 2; bool open = 3; bool sold_out = 4; }
+
+message CartState {
+  int64 user_id = 1; string class_code = 2; string quota = 3;
+  int32 from_idx = 4; int32 to_idx = 5;
+  repeated int32 seats = 6;
+  google.protobuf.Timestamp first_at = 7;
+  google.protobuf.Timestamp expires_at = 8;
+  Channel channel = 9;
+}
+
+message HoldState {
+  string pnr = 1; int64 user_id = 2; string class_code = 3; string quota = 4;
+  int32 from_idx = 5; int32 to_idx = 6;
+  repeated int32 seats = 7;               // one per passenger, seq = position + 1
+  repeated Passenger passengers = 8;
+  google.protobuf.Timestamp expires_at = 9;
+  int64 amount_minor = 10; string currency = 11;
+  Channel channel = 12;
+  string payment_id = 13;
+  google.protobuf.Timestamp expired_at = 14;
+  google.protobuf.Timestamp created_at = 15;
+  repeated int32 cancelled_seqs = 16;
+  bool late = 17; bool seats_changed = 18;
+}
+
+message SeenEntry { string idem_key = 1; int64 user_id = 2; Event event = 3; }

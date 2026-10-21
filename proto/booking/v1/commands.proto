@@ -1,0 +1,55 @@
+syntax = "proto3";
+package booking.v1;
+option go_package = "railway/gen/booking/v1;bookingv1";
+import "google/protobuf/timestamp.proto";
+
+// Spec v4.0 §5.5. Additions over the spec are marked "impl".
+
+enum Gender        { GENDER_UNSPECIFIED = 0; MALE = 1; FEMALE = 2; OTHER = 3; }
+enum PassengerType { PASSENGER_TYPE_UNSPECIFIED = 0; ADULT = 1; CHILD = 2; }
+enum Channel       { CHANNEL_UNSPECIFIED = 0; WEB = 1; APP = 2; COUNTER = 3; }
+
+message Passenger { string name = 1; Gender gender = 2; PassengerType type = 3; }
+
+// ---------- Commands: topic booking-requests, key = journey_id ----------
+message Command {
+  string request_id = 1;                  // UUIDv7, one per command
+  string idem_key   = 2;                  // "{user_id}:{Idempotency-Key}"; "" for system commands
+  int64  journey_id = 3;
+  string reply_to   = 4;                  // Redis channel of the producing API pod
+  google.protobuf.Timestamp sent_at = 5;
+  oneof body {
+    Select select = 10; Release release = 11; Hold hold = 12;
+    Confirm confirm = 13; Cancel cancel = 14;
+    Warm warm = 15; Open open = 16; Close close = 17;
+  }
+}
+
+message Select {                          // one click on a free seat
+  int64 user_id = 1; string seat_id = 2;
+  int32 from_idx = 3; int32 to_idx = 4;   // the user's trip; fixed for the whole cart
+  string class_code = 5; string quota = 6; Channel channel = 7;
+}
+
+message Release { int64 user_id = 1; string seat_id = 2; }   // "" = release whole cart
+
+message Hold {                            // passenger details
+  string pnr = 1; int64 user_id = 2;
+  repeated Passenger passengers = 3;      // one per seat in the cart, same order
+  Channel channel = 4;
+}
+
+message Confirm {
+  string pnr = 1; string payment_id = 2; int64 amount_minor = 3;
+  google.protobuf.Timestamp captured_at = 4;   // gateway capture time
+}
+
+message Cancel {
+  string pnr = 1; int64 user_id = 2; string cancel_id = 3; repeated int32 passenger_seqs = 4;
+  Channel channel = 5;                    // impl: COUNTER skips the owner check
+}
+
+message Warm  {}
+message Close {}
+message Open  { repeated Pool pools = 1; }   // empty = every pool whose opens_at <= now
+message Pool  { string class_code = 1; string quota = 2; }

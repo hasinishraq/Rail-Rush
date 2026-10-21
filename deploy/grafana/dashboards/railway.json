@@ -1,0 +1,97 @@
+{
+  "uid": "railway-overview",
+  "title": "Railway booking — overview",
+  "timezone": "Asia/Dhaka",
+  "refresh": "5s",
+  "time": { "from": "now-30m", "to": "now" },
+  "schemaVersion": 39,
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "Select / hold / cancel outcomes per second",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum by (command, result) (rate(command_results_total[1m]))", "legendFormat": "{{command}} {{result}}" }]
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "Allocator events committed per second",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum by (kind) (rate(allocator_events_total[1m]))", "legendFormat": "{{kind}}" }]
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "Kafka transaction commit latency p99 (alert > 50 ms)",
+      "gridPos": { "x": 0, "y": 8, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [{ "refId": "A", "expr": "histogram_quantile(0.99, sum by (le) (rate(allocator_commit_seconds_bucket[1m])))", "legendFormat": "p99" }]
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Allocator partition lag, worst partition (alert > 2 s)",
+      "gridPos": { "x": 8, "y": 8, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ms" } },
+      "targets": [{ "refId": "A", "expr": "max(allocator_partition_lag_ms)", "legendFormat": "lag" }]
+    },
+    {
+      "id": 5, "type": "stat", "title": "Journeys in allocator memory",
+      "gridPos": { "x": 16, "y": 8, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum(allocator_resident_journeys)" }]
+    },
+    {
+      "id": 6, "type": "stat", "title": "Commit failures (last hour)",
+      "gridPos": { "x": 20, "y": 8, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum(increase(allocator_commit_failures_total[1h]))" }]
+    },
+    {
+      "id": 7, "type": "stat", "title": "Oldest unsent outbox row (alert > 30 s)",
+      "gridPos": { "x": 16, "y": 12, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [{ "refId": "A", "expr": "max(outbox_oldest_unsent_seconds)" }]
+    },
+    {
+      "id": 8, "type": "stat", "title": "Refunds not yet succeeded",
+      "gridPos": { "x": 20, "y": 12, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "max(refunds_not_succeeded)" }]
+    },
+    {
+      "id": 9, "type": "timeseries", "title": "HTTP requests per second by route",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum by (route) (rate(http_requests_total[1m]))", "legendFormat": "{{route}}" }]
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "API error responses per second by code",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum by (code) (rate(api_errors_total[1m]))", "legendFormat": "{{code}}" }]
+    },
+    {
+      "id": 11, "type": "timeseries", "title": "Select decision latency p99 (API, s)",
+      "gridPos": { "x": 0, "y": 24, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "histogram_quantile(0.99, sum by (le, command) (rate(command_decision_seconds_bucket[1m])))", "legendFormat": "{{command}}" }]
+    },
+    {
+      "id": 12, "type": "stat", "title": "Live SSE connections",
+      "gridPos": { "x": 8, "y": 24, "w": 4, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum(live_connections)" }]
+    },
+    {
+      "id": 13, "type": "timeseries", "title": "Seat delta age at live pods p99 (s)",
+      "gridPos": { "x": 12, "y": 24, "w": 6, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "histogram_quantile(0.99, sum by (le) (rate(live_delta_age_seconds_bucket[1m])))", "legendFormat": "p99" }]
+    },
+    {
+      "id": 14, "type": "stat", "title": "Projector EXCLUDE violations (page)",
+      "gridPos": { "x": 18, "y": 24, "w": 6, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum(projector_exclude_violations_total)" }]
+    }
+  ]
+}

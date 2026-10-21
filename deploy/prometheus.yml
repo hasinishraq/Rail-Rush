@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 5s
+scrape_configs:
+  - job_name: railway
+    dns_sd_configs:
+      - names: [api, live, auth, search, projector, relay, reconciler, scheduler]
+        type: A
+        port: 9091
+  - job_name: allocator
+    dns_sd_configs:
+      - names: [allocator]
+        type: A
+        port: 9091

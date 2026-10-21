@@ -1,0 +1,12 @@
+/keys/
+deploy/keys/
+*.exe
+/app
+/allocator
+/fakegateway
+
+# local secrets: every .env file in any folder (.env, .env.local, .env.production, ...),
+# except the committed templates
+.env
+.env.*
+!.env.example
